@@ -1,0 +1,21 @@
+# Terraform state
+*.tfstate
+*.tfstate.backup
+.terraform/
+
+# Secrets
+terraform.tfvars
+*.auto.tfvars
+
+# SSH keys
+*.pem
+*.pub
+id_*
+
+# OS
+.DS_Store
+*.swp
+
+# IDE
+.idea/
+.vscode/

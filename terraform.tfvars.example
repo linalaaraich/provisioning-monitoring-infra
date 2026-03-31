@@ -1,0 +1,19 @@
+# Copy this file to terraform.tfvars and fill in your values
+# terraform.tfvars is gitignored — never commit secrets
+
+aws_region  = "us-east-1"
+environment = "demo"
+
+# Restrict SSH to your IP (replace with CIRES office CIDR)
+allowed_ssh_cidrs = ["YOUR_IP/32"]
+
+# Path to your SSH public key
+ssh_public_key_path = "~/.ssh/ansible_key.pub"
+ssh_key_name        = "ansible-key"
+
+# RDS credentials
+db_username = "appuser"
+db_password = "CHANGE_ME_strong_password_here"
+
+# S3 bucket (must be globally unique)
+s3_bucket_name = "cires-observability-demo-UNIQUE_SUFFIX"
