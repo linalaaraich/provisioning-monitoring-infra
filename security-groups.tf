@@ -81,21 +81,101 @@ resource "aws_security_group" "rds" {
 
 
 # =============================================================================
-# Ingress Rules — Monitoring SG
+# Shared ingress rules — SSH, OTel, Node Exporter, cAdvisor
+# These patterns repeat across all (or most) non-RDS security groups.
 # =============================================================================
 
-resource "aws_vpc_security_group_ingress_rule" "monitoring_ssh" {
-  for_each = toset(var.allowed_ssh_cidrs)
+locals {
+  # All non-RDS SGs that need SSH, OTel, and infrastructure rules
+  vm_security_groups = {
+    monitoring = aws_security_group.monitoring.id
+    backend    = aws_security_group.backend.id
+    network    = aws_security_group.network.id
+    ai         = aws_security_group.ai.id
+  }
 
-  security_group_id = aws_security_group.monitoring.id
+  # SSH: one rule per (SG × CIDR) combination
+  ssh_rules = merge([
+    for sg_name, sg_id in local.vm_security_groups : {
+      for cidr in var.allowed_ssh_cidrs :
+      "${sg_name}-${cidr}" => {
+        sg_id   = sg_id
+        sg_name = sg_name
+        cidr    = cidr
+      }
+    }
+  ]...)
+
+  # OTel Collector: gRPC (:4317) and HTTP (:4318) on every VM
+  otel_rules = merge([
+    for sg_name, sg_id in local.vm_security_groups : {
+      "${sg_name}-otel-grpc" = { sg_id = sg_id, sg_name = sg_name, port = 4317, desc = "OTel Collector gRPC" }
+      "${sg_name}-otel-http" = { sg_id = sg_id, sg_name = sg_name, port = 4318, desc = "OTel Collector HTTP" }
+    }
+  ]...)
+
+  # Node Exporter (:9100) and cAdvisor (:8081) — scraped by Prometheus (sg-monitoring)
+  # backend, network, ai only (monitoring scrapes itself via localhost)
+  infra_scrape_sgs = {
+    backend = aws_security_group.backend.id
+    network = aws_security_group.network.id
+    ai      = aws_security_group.ai.id
+  }
+
+  infra_scrape_rules = merge([
+    for sg_name, sg_id in local.infra_scrape_sgs : {
+      "${sg_name}-node-exporter" = { sg_id = sg_id, sg_name = sg_name, port = 9100, desc = "Node Exporter (Prometheus scrape)" }
+      "${sg_name}-cadvisor"      = { sg_id = sg_id, sg_name = sg_name, port = 8081, desc = "cAdvisor (Prometheus scrape)" }
+    }
+  ]...)
+}
+
+# --- SSH (all 4 VMs × each CIDR) ---
+resource "aws_vpc_security_group_ingress_rule" "ssh" {
+  for_each = local.ssh_rules
+
+  security_group_id = each.value.sg_id
   description       = "SSH"
   from_port         = 22
   to_port           = 22
   ip_protocol       = "tcp"
-  cidr_ipv4         = each.value
+  cidr_ipv4         = each.value.cidr
 
-  tags = { Name = "${var.project_name}-monitoring-ssh" }
+  tags = { Name = "${var.project_name}-${each.value.sg_name}-ssh" }
 }
+
+# --- OTel Collector (all 4 VMs × 2 ports) ---
+resource "aws_vpc_security_group_ingress_rule" "otel" {
+  for_each = local.otel_rules
+
+  security_group_id = each.value.sg_id
+  description       = each.value.desc
+  from_port         = each.value.port
+  to_port           = each.value.port
+  ip_protocol       = "tcp"
+  cidr_ipv4         = var.private_subnet_cidr
+
+  tags = { Name = "${var.project_name}-${each.key}" }
+}
+
+# --- Node Exporter + cAdvisor (backend, network, ai — from sg-monitoring) ---
+resource "aws_vpc_security_group_ingress_rule" "infra_scrape" {
+  for_each = local.infra_scrape_rules
+
+  security_group_id            = each.value.sg_id
+  description                  = each.value.desc
+  from_port                    = each.value.port
+  to_port                      = each.value.port
+  ip_protocol                  = "tcp"
+  referenced_security_group_id = aws_security_group.monitoring.id
+
+  tags = { Name = "${var.project_name}-${each.key}" }
+}
+
+
+# =============================================================================
+# Ingress Rules — Monitoring SG (service-specific, unique ports)
+# =============================================================================
 
 resource "aws_vpc_security_group_ingress_rule" "monitoring_prometheus" {
   security_group_id = aws_security_group.monitoring.id
@@ -163,28 +243,6 @@ resource "aws_vpc_security_group_ingress_rule" "monitoring_jaeger_otlp_http" {
   tags = { Name = "${var.project_name}-monitoring-jaeger-otlp-http" }
 }
 
-resource "aws_vpc_security_group_ingress_rule" "monitoring_otel_grpc" {
-  security_group_id = aws_security_group.monitoring.id
-  description       = "OTel Collector gRPC"
-  from_port         = 4317
-  to_port           = 4317
-  ip_protocol       = "tcp"
-  cidr_ipv4         = var.private_subnet_cidr
-
-  tags = { Name = "${var.project_name}-monitoring-otel-grpc" }
-}
-
-resource "aws_vpc_security_group_ingress_rule" "monitoring_otel_http" {
-  security_group_id = aws_security_group.monitoring.id
-  description       = "OTel Collector HTTP"
-  from_port         = 4318
-  to_port           = 4318
-  ip_protocol       = "tcp"
-  cidr_ipv4         = var.private_subnet_cidr
-
-  tags = { Name = "${var.project_name}-monitoring-otel-http" }
-}
-
 resource "aws_vpc_security_group_ingress_rule" "monitoring_otel_metrics" {
   security_group_id = aws_security_group.monitoring.id
   description       = "OTel Collector metrics"
@@ -220,21 +278,8 @@ resource "aws_vpc_security_group_ingress_rule" "monitoring_cadvisor" {
 
 
 # =============================================================================
-# Ingress Rules — Backend SG
+# Ingress Rules — Backend SG (service-specific)
 # =============================================================================
-
-resource "aws_vpc_security_group_ingress_rule" "backend_ssh" {
-  for_each = toset(var.allowed_ssh_cidrs)
-
-  security_group_id = aws_security_group.backend.id
-  description       = "SSH"
-  from_port         = 22
-  to_port           = 22
-  ip_protocol       = "tcp"
-  cidr_ipv4         = each.value
-
-  tags = { Name = "${var.project_name}-backend-ssh" }
-}
 
 resource "aws_vpc_security_group_ingress_rule" "backend_http_from_kong" {
   security_group_id            = aws_security_group.backend.id
@@ -258,67 +303,10 @@ resource "aws_vpc_security_group_ingress_rule" "backend_spring_direct" {
   tags = { Name = "${var.project_name}-backend-spring-direct" }
 }
 
-resource "aws_vpc_security_group_ingress_rule" "backend_node_exporter" {
-  security_group_id            = aws_security_group.backend.id
-  description                  = "Node Exporter (Prometheus scrape)"
-  from_port                    = 9100
-  to_port                      = 9100
-  ip_protocol                  = "tcp"
-  referenced_security_group_id = aws_security_group.monitoring.id
-
-  tags = { Name = "${var.project_name}-backend-node-exporter" }
-}
-
-resource "aws_vpc_security_group_ingress_rule" "backend_cadvisor" {
-  security_group_id            = aws_security_group.backend.id
-  description                  = "cAdvisor (Prometheus scrape)"
-  from_port                    = 8081
-  to_port                      = 8081
-  ip_protocol                  = "tcp"
-  referenced_security_group_id = aws_security_group.monitoring.id
-
-  tags = { Name = "${var.project_name}-backend-cadvisor" }
-}
-
-resource "aws_vpc_security_group_ingress_rule" "backend_otel_grpc" {
-  security_group_id = aws_security_group.backend.id
-  description       = "OTel Collector gRPC"
-  from_port         = 4317
-  to_port           = 4317
-  ip_protocol       = "tcp"
-  cidr_ipv4         = var.private_subnet_cidr
-
-  tags = { Name = "${var.project_name}-backend-otel-grpc" }
-}
-
-resource "aws_vpc_security_group_ingress_rule" "backend_otel_http" {
-  security_group_id = aws_security_group.backend.id
-  description       = "OTel Collector HTTP"
-  from_port         = 4318
-  to_port           = 4318
-  ip_protocol       = "tcp"
-  cidr_ipv4         = var.private_subnet_cidr
-
-  tags = { Name = "${var.project_name}-backend-otel-http" }
-}
-
 
 # =============================================================================
-# Ingress Rules — Network SG
+# Ingress Rules — Network SG (service-specific)
 # =============================================================================
-
-resource "aws_vpc_security_group_ingress_rule" "network_ssh" {
-  for_each = toset(var.allowed_ssh_cidrs)
-
-  security_group_id = aws_security_group.network.id
-  description       = "SSH"
-  from_port         = 22
-  to_port           = 22
-  ip_protocol       = "tcp"
-  cidr_ipv4         = each.value
-
-  tags = { Name = "${var.project_name}-network-ssh" }
-}
 
 resource "aws_vpc_security_group_ingress_rule" "network_kong_proxy" {
   security_group_id = aws_security_group.network.id
@@ -342,67 +330,10 @@ resource "aws_vpc_security_group_ingress_rule" "network_kong_admin" {
   tags = { Name = "${var.project_name}-network-kong-admin" }
 }
 
-resource "aws_vpc_security_group_ingress_rule" "network_node_exporter" {
-  security_group_id            = aws_security_group.network.id
-  description                  = "Node Exporter (Prometheus scrape)"
-  from_port                    = 9100
-  to_port                      = 9100
-  ip_protocol                  = "tcp"
-  referenced_security_group_id = aws_security_group.monitoring.id
-
-  tags = { Name = "${var.project_name}-network-node-exporter" }
-}
-
-resource "aws_vpc_security_group_ingress_rule" "network_cadvisor" {
-  security_group_id            = aws_security_group.network.id
-  description                  = "cAdvisor (Prometheus scrape)"
-  from_port                    = 8081
-  to_port                      = 8081
-  ip_protocol                  = "tcp"
-  referenced_security_group_id = aws_security_group.monitoring.id
-
-  tags = { Name = "${var.project_name}-network-cadvisor" }
-}
-
-resource "aws_vpc_security_group_ingress_rule" "network_otel_grpc" {
-  security_group_id = aws_security_group.network.id
-  description       = "OTel Collector gRPC"
-  from_port         = 4317
-  to_port           = 4317
-  ip_protocol       = "tcp"
-  cidr_ipv4         = var.private_subnet_cidr
-
-  tags = { Name = "${var.project_name}-network-otel-grpc" }
-}
-
-resource "aws_vpc_security_group_ingress_rule" "network_otel_http" {
-  security_group_id = aws_security_group.network.id
-  description       = "OTel Collector HTTP"
-  from_port         = 4318
-  to_port           = 4318
-  ip_protocol       = "tcp"
-  cidr_ipv4         = var.private_subnet_cidr
-
-  tags = { Name = "${var.project_name}-network-otel-http" }
-}
-
 
 # =============================================================================
-# Ingress Rules — AI SG
+# Ingress Rules — AI SG (service-specific)
 # =============================================================================
-
-resource "aws_vpc_security_group_ingress_rule" "ai_ssh" {
-  for_each = toset(var.allowed_ssh_cidrs)
-
-  security_group_id = aws_security_group.ai.id
-  description       = "SSH"
-  from_port         = 22
-  to_port           = 22
-  ip_protocol       = "tcp"
-  cidr_ipv4         = each.value
-
-  tags = { Name = "${var.project_name}-ai-ssh" }
-}
 
 resource "aws_vpc_security_group_ingress_rule" "ai_triage_webhook" {
   security_group_id            = aws_security_group.ai.id
@@ -424,50 +355,6 @@ resource "aws_vpc_security_group_ingress_rule" "ai_ollama" {
   cidr_ipv4         = var.private_subnet_cidr
 
   tags = { Name = "${var.project_name}-ai-ollama" }
-}
-
-resource "aws_vpc_security_group_ingress_rule" "ai_node_exporter" {
-  security_group_id            = aws_security_group.ai.id
-  description                  = "Node Exporter (Prometheus scrape)"
-  from_port                    = 9100
-  to_port                      = 9100
-  ip_protocol                  = "tcp"
-  referenced_security_group_id = aws_security_group.monitoring.id
-
-  tags = { Name = "${var.project_name}-ai-node-exporter" }
-}
-
-resource "aws_vpc_security_group_ingress_rule" "ai_cadvisor" {
-  security_group_id            = aws_security_group.ai.id
-  description                  = "cAdvisor (Prometheus scrape)"
-  from_port                    = 8081
-  to_port                      = 8081
-  ip_protocol                  = "tcp"
-  referenced_security_group_id = aws_security_group.monitoring.id
-
-  tags = { Name = "${var.project_name}-ai-cadvisor" }
-}
-
-resource "aws_vpc_security_group_ingress_rule" "ai_otel_grpc" {
-  security_group_id = aws_security_group.ai.id
-  description       = "OTel Collector gRPC"
-  from_port         = 4317
-  to_port           = 4317
-  ip_protocol       = "tcp"
-  cidr_ipv4         = var.private_subnet_cidr
-
-  tags = { Name = "${var.project_name}-ai-otel-grpc" }
-}
-
-resource "aws_vpc_security_group_ingress_rule" "ai_otel_http" {
-  security_group_id = aws_security_group.ai.id
-  description       = "OTel Collector HTTP"
-  from_port         = 4318
-  to_port           = 4318
-  ip_protocol       = "tcp"
-  cidr_ipv4         = var.private_subnet_cidr
-
-  tags = { Name = "${var.project_name}-ai-otel-http" }
 }
 
 
