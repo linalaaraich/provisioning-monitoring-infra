@@ -491,47 +491,19 @@ resource "aws_vpc_security_group_ingress_rule" "rds_mysql_from_backend" {
 # Egress Rules — All SGs allow all outbound
 # =============================================================================
 
-resource "aws_vpc_security_group_egress_rule" "monitoring_all_outbound" {
-  security_group_id = aws_security_group.monitoring.id
+resource "aws_vpc_security_group_egress_rule" "all_outbound" {
+  for_each = {
+    monitoring = aws_security_group.monitoring.id
+    backend    = aws_security_group.backend.id
+    network    = aws_security_group.network.id
+    ai         = aws_security_group.ai.id
+    rds        = aws_security_group.rds.id
+  }
+
+  security_group_id = each.value
   description       = "All outbound"
   ip_protocol       = "-1"
   cidr_ipv4         = "0.0.0.0/0"
 
-  tags = { Name = "${var.project_name}-monitoring-egress-all" }
-}
-
-resource "aws_vpc_security_group_egress_rule" "backend_all_outbound" {
-  security_group_id = aws_security_group.backend.id
-  description       = "All outbound"
-  ip_protocol       = "-1"
-  cidr_ipv4         = "0.0.0.0/0"
-
-  tags = { Name = "${var.project_name}-backend-egress-all" }
-}
-
-resource "aws_vpc_security_group_egress_rule" "network_all_outbound" {
-  security_group_id = aws_security_group.network.id
-  description       = "All outbound"
-  ip_protocol       = "-1"
-  cidr_ipv4         = "0.0.0.0/0"
-
-  tags = { Name = "${var.project_name}-network-egress-all" }
-}
-
-resource "aws_vpc_security_group_egress_rule" "ai_all_outbound" {
-  security_group_id = aws_security_group.ai.id
-  description       = "All outbound"
-  ip_protocol       = "-1"
-  cidr_ipv4         = "0.0.0.0/0"
-
-  tags = { Name = "${var.project_name}-ai-egress-all" }
-}
-
-resource "aws_vpc_security_group_egress_rule" "rds_all_outbound" {
-  security_group_id = aws_security_group.rds.id
-  description       = "All outbound"
-  ip_protocol       = "-1"
-  cidr_ipv4         = "0.0.0.0/0"
-
-  tags = { Name = "${var.project_name}-rds-egress-all" }
+  tags = { Name = "${var.project_name}-${each.key}-egress-all" }
 }
