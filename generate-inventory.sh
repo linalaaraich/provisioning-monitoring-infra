@@ -12,9 +12,8 @@ ANSIBLE_DIR="${1:-../monitoring-project}"
 
 echo "Reading Terraform outputs..."
 MONITORING_IP=$(terraform output -raw monitoring_private_ip)
-BACKEND_IP=$(terraform output -raw backend_private_ip)
-NETWORK_IP=$(terraform output -raw network_private_ip)
-AI_IP=$(terraform output -raw ai_private_ip)
+K3S_IP=$(terraform output -raw k3s_private_ip)
+GPU_IP=$(terraform output -raw gpu_private_ip)
 RDS_ENDPOINT=$(terraform output -raw rds_hostname)
 RDS_PORT=$(terraform output -raw rds_port)
 CLOUDFRONT_DOMAIN=$(terraform output -raw cloudfront_domain)
@@ -22,9 +21,8 @@ CLOUDFRONT_DOMAIN=$(terraform output -raw cloudfront_domain)
 echo ""
 echo "=== Terraform Outputs ==="
 echo "Monitoring VM: $MONITORING_IP"
-echo "Backend VM:    $BACKEND_IP"
-echo "Network VM:    $NETWORK_IP"
-echo "AI/LLM VM:     $AI_IP"
+echo "k3s VM:        $K3S_IP"
+echo "GPU VM:        $GPU_IP"
 echo "RDS Endpoint:  $RDS_ENDPOINT:$RDS_PORT"
 echo "CloudFront:    $CLOUDFRONT_DOMAIN"
 echo ""
@@ -34,9 +32,8 @@ ALL_VARS="$ANSIBLE_DIR/inventory/group_vars/all.yml"
 if [ -f "$ALL_VARS" ]; then
   echo "Updating $ALL_VARS ..."
   sed -i "s|^monitoring_vm_ip:.*|monitoring_vm_ip: \"$MONITORING_IP\"|" "$ALL_VARS"
-  sed -i "s|^application_vm_ip:.*|application_vm_ip: \"$BACKEND_IP\"|" "$ALL_VARS"
-  sed -i "s|^network_vm_ip:.*|network_vm_ip: \"$NETWORK_IP\"|" "$ALL_VARS"
-  sed -i "s|^ai_vm_ip:.*|ai_vm_ip: \"$AI_IP\"|" "$ALL_VARS"
+  sed -i "s|^k3s_host_ip:.*|k3s_host_ip: \"$K3S_IP\"|" "$ALL_VARS"
+  sed -i "s|^gpu_host_ip:.*|gpu_host_ip: \"$GPU_IP\"|" "$ALL_VARS"
   sed -i "s|^rds_endpoint:.*|rds_endpoint: \"$RDS_ENDPOINT\"|" "$ALL_VARS"
   sed -i "s|^rds_port:.*|rds_port: $RDS_PORT|" "$ALL_VARS"
   sed -i "s|^cloudfront_domain:.*|cloudfront_domain: \"$CLOUDFRONT_DOMAIN\"|" "$ALL_VARS"
@@ -51,19 +48,18 @@ if [ -f "$INVENTORY" ]; then
   echo "Updating $INVENTORY ..."
   sed -i "s|ansible_host: .*# monitoring|ansible_host: $MONITORING_IP  # monitoring|" "$INVENTORY"
   # Use Python for more reliable YAML updates
-  python3 - "$INVENTORY" "$MONITORING_IP" "$BACKEND_IP" "$NETWORK_IP" "$AI_IP" <<'PYEOF'
+  python3 - "$INVENTORY" "$MONITORING_IP" "$K3S_IP" "$GPU_IP" <<'PYEOF'
 import sys, re
 
-path, mon, back, net, ai = sys.argv[1:6]
+path, mon, k3s, gpu = sys.argv[1:5]
 with open(path) as f:
     content = f.read()
 
 # Update each host's ansible_host
 updates = {
     'monitoring-vm': mon,
-    'application-vm': back,
-    'network-vm': net,
-    'ai-vm': ai,
+    'k3s-vm': k3s,
+    'gpu-vm': gpu,
 }
 
 for host, ip in updates.items():

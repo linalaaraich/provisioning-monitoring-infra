@@ -68,6 +68,15 @@ variable "ssh_key_name" {
 }
 
 # -----------------------------------------------------------------------------
+# AMI
+# -----------------------------------------------------------------------------
+variable "ubuntu_ami_id" {
+  description = "Pinned Ubuntu AMI ID. Leave empty to use latest."
+  type        = string
+  default     = ""
+}
+
+# -----------------------------------------------------------------------------
 # EC2 Instance Types
 # -----------------------------------------------------------------------------
 variable "monitoring_instance_type" {
@@ -76,20 +85,14 @@ variable "monitoring_instance_type" {
   default     = "t3.large"
 }
 
-variable "backend_instance_type" {
-  description = "EC2 instance type for backend VM"
+variable "k3s_instance_type" {
+  description = "EC2 instance type for k3s cluster VM"
   type        = string
-  default     = "t3.small"
+  default     = "t3.xlarge"
 }
 
-variable "network_instance_type" {
-  description = "EC2 instance type for network VM"
-  type        = string
-  default     = "t3.small"
-}
-
-variable "ai_instance_type" {
-  description = "EC2 instance type for AI/LLM VM (GPU required)"
+variable "gpu_instance_type" {
+  description = "EC2 instance type for GPU VM (Ollama)"
   type        = string
   default     = "g4dn.xlarge"
 }
@@ -103,20 +106,14 @@ variable "monitoring_volume_size" {
   default     = 50
 }
 
-variable "backend_volume_size" {
-  description = "Root volume size (GB) for backend VM"
+variable "k3s_volume_size" {
+  description = "Root volume size (GB) for k3s cluster VM"
   type        = number
-  default     = 20
+  default     = 50
 }
 
-variable "network_volume_size" {
-  description = "Root volume size (GB) for network VM"
-  type        = number
-  default     = 20
-}
-
-variable "ai_volume_size" {
-  description = "Root volume size (GB) for AI/LLM VM"
+variable "gpu_volume_size" {
+  description = "Root volume size (GB) for GPU VM"
   type        = number
   default     = 50
 }

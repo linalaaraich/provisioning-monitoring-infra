@@ -1,5 +1,8 @@
 # -----------------------------------------------------------------------------
-# Ubuntu 22.04 AMI (latest)
+# Ubuntu 22.04 AMI
+# When ubuntu_ami_id is set, that pinned AMI is used directly (recommended for
+# production to avoid surprise AMI changes on terraform apply).
+# When left empty the data source fetches the latest Canonical AMI.
 # -----------------------------------------------------------------------------
 data "aws_ami" "ubuntu" {
   most_recent = true
@@ -14,6 +17,10 @@ data "aws_ami" "ubuntu" {
     name   = "virtualization-type"
     values = ["hvm"]
   }
+}
+
+locals {
+  ami_id = var.ubuntu_ami_id != "" ? var.ubuntu_ami_id : data.aws_ami.ubuntu.id
 }
 
 # -----------------------------------------------------------------------------
@@ -50,26 +57,21 @@ resource "aws_eip" "monitoring" {
   tags   = { Name = "${var.project_name}-monitoring-eip" }
 }
 
-resource "aws_eip" "backend" {
+resource "aws_eip" "k3s" {
   domain = "vpc"
-  tags   = { Name = "${var.project_name}-backend-eip" }
+  tags   = { Name = "${var.project_name}-k3s-eip" }
 }
 
-resource "aws_eip" "network" {
+resource "aws_eip" "gpu" {
   domain = "vpc"
-  tags   = { Name = "${var.project_name}-network-eip" }
-}
-
-resource "aws_eip" "ai" {
-  domain = "vpc"
-  tags   = { Name = "${var.project_name}-ai-eip" }
+  tags   = { Name = "${var.project_name}-gpu-eip" }
 }
 
 # -----------------------------------------------------------------------------
 # Monitoring VM — t3.large, 50 GB gp3
 # -----------------------------------------------------------------------------
 resource "aws_instance" "monitoring" {
-  ami                    = data.aws_ami.ubuntu.id
+  ami                    = local.ami_id
   instance_type          = var.monitoring_instance_type
   key_name               = aws_key_pair.ansible.key_name
   subnet_id              = aws_subnet.private.id
@@ -90,73 +92,49 @@ resource "aws_eip_association" "monitoring" {
 }
 
 # -----------------------------------------------------------------------------
-# Backend VM — t3.small, 20 GB gp3
+# k3s VM — t3.xlarge, 50 GB gp3 (Spring Boot, Kong, Triage, MCP Servers)
 # -----------------------------------------------------------------------------
-resource "aws_instance" "backend" {
-  ami                    = data.aws_ami.ubuntu.id
-  instance_type          = var.backend_instance_type
+resource "aws_instance" "k3s" {
+  ami                    = local.ami_id
+  instance_type          = var.k3s_instance_type
   key_name               = aws_key_pair.ansible.key_name
   subnet_id              = aws_subnet.private.id
-  vpc_security_group_ids = [aws_security_group.backend.id]
+  vpc_security_group_ids = [aws_security_group.k3s.id]
   user_data              = local.user_data
 
   root_block_device {
-    volume_size = var.backend_volume_size
+    volume_size = var.k3s_volume_size
     volume_type = "gp3"
   }
 
-  tags = { Name = "${var.project_name}-backend" }
+  tags = { Name = "${var.project_name}-k3s" }
 }
 
-resource "aws_eip_association" "backend" {
-  instance_id   = aws_instance.backend.id
-  allocation_id = aws_eip.backend.id
+resource "aws_eip_association" "k3s" {
+  instance_id   = aws_instance.k3s.id
+  allocation_id = aws_eip.k3s.id
 }
 
 # -----------------------------------------------------------------------------
-# Network VM — t3.small, 20 GB gp3
+# GPU VM — g4dn.xlarge, 50 GB gp3, NVIDIA T4 GPU (Ollama)
 # -----------------------------------------------------------------------------
-resource "aws_instance" "network" {
-  ami                    = data.aws_ami.ubuntu.id
-  instance_type          = var.network_instance_type
+resource "aws_instance" "gpu" {
+  ami                    = local.ami_id
+  instance_type          = var.gpu_instance_type
   key_name               = aws_key_pair.ansible.key_name
   subnet_id              = aws_subnet.private.id
-  vpc_security_group_ids = [aws_security_group.network.id]
+  vpc_security_group_ids = [aws_security_group.gpu.id]
   user_data              = local.user_data
 
   root_block_device {
-    volume_size = var.network_volume_size
+    volume_size = var.gpu_volume_size
     volume_type = "gp3"
   }
 
-  tags = { Name = "${var.project_name}-network" }
+  tags = { Name = "${var.project_name}-gpu" }
 }
 
-resource "aws_eip_association" "network" {
-  instance_id   = aws_instance.network.id
-  allocation_id = aws_eip.network.id
-}
-
-# -----------------------------------------------------------------------------
-# AI/LLM VM — g4dn.xlarge, 50 GB gp3, NVIDIA T4 GPU
-# -----------------------------------------------------------------------------
-resource "aws_instance" "ai" {
-  ami                    = data.aws_ami.ubuntu.id
-  instance_type          = var.ai_instance_type
-  key_name               = aws_key_pair.ansible.key_name
-  subnet_id              = aws_subnet.private.id
-  vpc_security_group_ids = [aws_security_group.ai.id]
-  user_data              = local.user_data
-
-  root_block_device {
-    volume_size = var.ai_volume_size
-    volume_type = "gp3"
-  }
-
-  tags = { Name = "${var.project_name}-ai" }
-}
-
-resource "aws_eip_association" "ai" {
-  instance_id   = aws_instance.ai.id
-  allocation_id = aws_eip.ai.id
+resource "aws_eip_association" "gpu" {
+  instance_id   = aws_instance.gpu.id
+  allocation_id = aws_eip.gpu.id
 }

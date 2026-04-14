@@ -6,19 +6,14 @@ output "monitoring_private_ip" {
   value       = aws_instance.monitoring.private_ip
 }
 
-output "backend_private_ip" {
-  description = "Backend VM private IP"
-  value       = aws_instance.backend.private_ip
+output "k3s_private_ip" {
+  description = "k3s cluster VM private IP"
+  value       = aws_instance.k3s.private_ip
 }
 
-output "network_private_ip" {
-  description = "Network VM private IP"
-  value       = aws_instance.network.private_ip
-}
-
-output "ai_private_ip" {
-  description = "AI/LLM VM private IP"
-  value       = aws_instance.ai.private_ip
+output "gpu_private_ip" {
+  description = "GPU VM private IP"
+  value       = aws_instance.gpu.private_ip
 }
 
 # -----------------------------------------------------------------------------
@@ -29,19 +24,14 @@ output "monitoring_public_ip" {
   value       = aws_eip.monitoring.public_ip
 }
 
-output "backend_public_ip" {
-  description = "Backend VM Elastic IP"
-  value       = aws_eip.backend.public_ip
+output "k3s_public_ip" {
+  description = "k3s cluster VM Elastic IP"
+  value       = aws_eip.k3s.public_ip
 }
 
-output "network_public_ip" {
-  description = "Network VM Elastic IP"
-  value       = aws_eip.network.public_ip
-}
-
-output "ai_public_ip" {
-  description = "AI/LLM VM Elastic IP"
-  value       = aws_eip.ai.public_ip
+output "gpu_public_ip" {
+  description = "GPU VM Elastic IP"
+  value       = aws_eip.gpu.public_ip
 }
 
 # -----------------------------------------------------------------------------

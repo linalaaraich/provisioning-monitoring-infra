@@ -20,14 +20,14 @@ resource "aws_security_group" "monitoring" {
 }
 
 # -----------------------------------------------------------------------------
-# sg-backend — Spring Boot API
+# sg-k3s — k3s cluster (Spring Boot, Kong, Triage, MCP Servers)
 # -----------------------------------------------------------------------------
-resource "aws_security_group" "backend" {
-  name_prefix = "${var.project_name}-backend-"
-  description = "Backend: Spring Boot API"
+resource "aws_security_group" "k3s" {
+  name_prefix = "${var.project_name}-k3s-"
+  description = "k3s cluster: Spring Boot, Kong, Triage, MCP Servers"
   vpc_id      = aws_vpc.main.id
 
-  tags = { Name = "${var.project_name}-sg-backend" }
+  tags = { Name = "${var.project_name}-sg-k3s" }
 
   lifecycle {
     create_before_destroy = true
@@ -35,14 +35,14 @@ resource "aws_security_group" "backend" {
 }
 
 # -----------------------------------------------------------------------------
-# sg-network — Kong API Gateway
+# sg-gpu — Ollama (GPU node)
 # -----------------------------------------------------------------------------
-resource "aws_security_group" "network" {
-  name_prefix = "${var.project_name}-network-"
-  description = "Network: Kong API Gateway"
+resource "aws_security_group" "gpu" {
+  name_prefix = "${var.project_name}-gpu-"
+  description = "GPU: Ollama LLM inference"
   vpc_id      = aws_vpc.main.id
 
-  tags = { Name = "${var.project_name}-sg-network" }
+  tags = { Name = "${var.project_name}-sg-gpu" }
 
   lifecycle {
     create_before_destroy = true
@@ -50,26 +50,11 @@ resource "aws_security_group" "network" {
 }
 
 # -----------------------------------------------------------------------------
-# sg-ai — Ollama, Triage Service, MCP Servers
-# -----------------------------------------------------------------------------
-resource "aws_security_group" "ai" {
-  name_prefix = "${var.project_name}-ai-"
-  description = "AI/LLM: Ollama, Triage Service, MCP Servers"
-  vpc_id      = aws_vpc.main.id
-
-  tags = { Name = "${var.project_name}-sg-ai" }
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-# -----------------------------------------------------------------------------
-# sg-rds — MySQL (backend access only)
+# sg-rds — MySQL (k3s access only)
 # -----------------------------------------------------------------------------
 resource "aws_security_group" "rds" {
   name_prefix = "${var.project_name}-rds-"
-  description = "RDS MySQL: backend access only"
+  description = "RDS MySQL: k3s access only"
   vpc_id      = aws_vpc.main.id
 
   tags = { Name = "${var.project_name}-sg-rds" }
@@ -86,12 +71,11 @@ resource "aws_security_group" "rds" {
 # =============================================================================
 
 locals {
-  # All non-RDS SGs that need SSH, OTel, and infrastructure rules
+  # All non-RDS SGs that need SSH and common rules
   vm_security_groups = {
     monitoring = aws_security_group.monitoring.id
-    backend    = aws_security_group.backend.id
-    network    = aws_security_group.network.id
-    ai         = aws_security_group.ai.id
+    k3s        = aws_security_group.k3s.id
+    gpu        = aws_security_group.gpu.id
   }
 
   # SSH: one rule per (SG × CIDR) combination
@@ -115,11 +99,9 @@ locals {
   ]...)
 
   # Node Exporter (:9100) and cAdvisor (:8081) — scraped by Prometheus (sg-monitoring)
-  # backend, network, ai only (monitoring scrapes itself via localhost)
+  # gpu only (k3s pods are scraped via kubernetes_sd_configs, monitoring scrapes itself)
   infra_scrape_sgs = {
-    backend = aws_security_group.backend.id
-    network = aws_security_group.network.id
-    ai      = aws_security_group.ai.id
+    gpu = aws_security_group.gpu.id
   }
 
   infra_scrape_rules = merge([
@@ -130,7 +112,7 @@ locals {
   ]...)
 }
 
-# --- SSH (all 4 VMs × each CIDR) ---
+# --- SSH (all VMs × each CIDR) ---
 resource "aws_vpc_security_group_ingress_rule" "ssh" {
   for_each = local.ssh_rules
 
@@ -144,7 +126,7 @@ resource "aws_vpc_security_group_ingress_rule" "ssh" {
   tags = { Name = "${var.project_name}-${each.value.sg_name}-ssh" }
 }
 
-# --- OTel Collector (all 4 VMs × 2 ports) ---
+# --- OTel Collector (all VMs × 2 ports) ---
 resource "aws_vpc_security_group_ingress_rule" "otel" {
   for_each = local.otel_rules
 
@@ -158,7 +140,7 @@ resource "aws_vpc_security_group_ingress_rule" "otel" {
   tags = { Name = "${var.project_name}-${each.key}" }
 }
 
-# --- Node Exporter + cAdvisor (backend, network, ai — from sg-monitoring) ---
+# --- Node Exporter + cAdvisor (gpu — from sg-monitoring) ---
 resource "aws_vpc_security_group_ingress_rule" "infra_scrape" {
   for_each = local.infra_scrape_rules
 
@@ -278,83 +260,111 @@ resource "aws_vpc_security_group_ingress_rule" "monitoring_cadvisor" {
 
 
 # =============================================================================
-# Ingress Rules — Backend SG (service-specific)
+# Ingress Rules — k3s SG (service-specific)
 # =============================================================================
 
-resource "aws_vpc_security_group_ingress_rule" "backend_http_from_kong" {
-  security_group_id            = aws_security_group.backend.id
-  description                  = "HTTP from Kong"
-  from_port                    = 80
-  to_port                      = 80
-  ip_protocol                  = "tcp"
-  referenced_security_group_id = aws_security_group.network.id
-
-  tags = { Name = "${var.project_name}-backend-http-from-kong" }
-}
-
-resource "aws_vpc_security_group_ingress_rule" "backend_spring_direct" {
-  security_group_id = aws_security_group.backend.id
-  description       = "Spring Boot direct (health checks)"
-  from_port         = 8080
-  to_port           = 8080
-  ip_protocol       = "tcp"
-  cidr_ipv4         = var.private_subnet_cidr
-
-  tags = { Name = "${var.project_name}-backend-spring-direct" }
-}
-
-
-# =============================================================================
-# Ingress Rules — Network SG (service-specific)
-# =============================================================================
-
-resource "aws_vpc_security_group_ingress_rule" "network_kong_proxy" {
-  security_group_id = aws_security_group.network.id
-  description       = "Kong Proxy"
-  from_port         = 8000
-  to_port           = 8000
-  ip_protocol       = "tcp"
-  cidr_ipv4         = var.private_subnet_cidr
-
-  tags = { Name = "${var.project_name}-network-kong-proxy" }
-}
-
-resource "aws_vpc_security_group_ingress_rule" "network_kong_admin" {
-  security_group_id = aws_security_group.network.id
-  description       = "Kong Admin"
-  from_port         = 8001
-  to_port           = 8001
-  ip_protocol       = "tcp"
-  cidr_ipv4         = var.private_subnet_cidr
-
-  tags = { Name = "${var.project_name}-network-kong-admin" }
-}
-
-
-# =============================================================================
-# Ingress Rules — AI SG (service-specific)
-# =============================================================================
-
-resource "aws_vpc_security_group_ingress_rule" "ai_triage_webhook" {
-  security_group_id            = aws_security_group.ai.id
-  description                  = "Triage Service webhook (from Grafana)"
-  from_port                    = 8090
-  to_port                      = 8090
+resource "aws_vpc_security_group_ingress_rule" "k3s_api_server" {
+  security_group_id            = aws_security_group.k3s.id
+  description                  = "K8s API server (Prometheus kubernetes_sd_configs)"
+  from_port                    = 6443
+  to_port                      = 6443
   ip_protocol                  = "tcp"
   referenced_security_group_id = aws_security_group.monitoring.id
 
-  tags = { Name = "${var.project_name}-ai-triage-webhook" }
+  tags = { Name = "${var.project_name}-k3s-api-server" }
 }
 
-resource "aws_vpc_security_group_ingress_rule" "ai_ollama" {
-  security_group_id = aws_security_group.ai.id
+resource "aws_vpc_security_group_ingress_rule" "k3s_kubelet" {
+  security_group_id            = aws_security_group.k3s.id
+  description                  = "Kubelet metrics (Prometheus scrape)"
+  from_port                    = 10250
+  to_port                      = 10250
+  ip_protocol                  = "tcp"
+  referenced_security_group_id = aws_security_group.monitoring.id
+
+  tags = { Name = "${var.project_name}-k3s-kubelet" }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "k3s_nodeport" {
+  security_group_id = aws_security_group.k3s.id
+  description       = "NodePort range (Kong external access)"
+  from_port         = 30000
+  to_port           = 32767
+  ip_protocol       = "tcp"
+  cidr_ipv4         = var.private_subnet_cidr
+
+  tags = { Name = "${var.project_name}-k3s-nodeport" }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "k3s_http" {
+  security_group_id = aws_security_group.k3s.id
+  description       = "HTTP (Kong hostPort)"
+  from_port         = 80
+  to_port           = 80
+  ip_protocol       = "tcp"
+  cidr_ipv4         = var.private_subnet_cidr
+
+  tags = { Name = "${var.project_name}-k3s-http" }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "k3s_https" {
+  security_group_id = aws_security_group.k3s.id
+  description       = "HTTPS (Kong hostPort)"
+  from_port         = 443
+  to_port           = 443
+  ip_protocol       = "tcp"
+  cidr_ipv4         = var.private_subnet_cidr
+
+  tags = { Name = "${var.project_name}-k3s-https" }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "k3s_otel_grpc_from_monitoring" {
+  security_group_id            = aws_security_group.k3s.id
+  description                  = "OTel Collector gRPC (traces/logs forwarding)"
+  from_port                    = 4317
+  to_port                      = 4317
+  ip_protocol                  = "tcp"
+  referenced_security_group_id = aws_security_group.monitoring.id
+
+  tags = { Name = "${var.project_name}-k3s-otel-grpc-from-monitoring" }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "k3s_otel_http_from_monitoring" {
+  security_group_id            = aws_security_group.k3s.id
+  description                  = "OTel Collector HTTP (traces/logs forwarding)"
+  from_port                    = 4318
+  to_port                      = 4318
+  ip_protocol                  = "tcp"
+  referenced_security_group_id = aws_security_group.monitoring.id
+
+  tags = { Name = "${var.project_name}-k3s-otel-http-from-monitoring" }
+}
+
+
+# =============================================================================
+# Ingress Rules — GPU SG (service-specific)
+# =============================================================================
+
+resource "aws_vpc_security_group_ingress_rule" "gpu_ollama" {
+  security_group_id = aws_security_group.gpu.id
   description       = "Ollama API (internal)"
   from_port         = 11434
   to_port           = 11434
   ip_protocol       = "tcp"
   cidr_ipv4         = var.private_subnet_cidr
 
-  tags = { Name = "${var.project_name}-ai-ollama" }
+  tags = { Name = "${var.project_name}-gpu-ollama" }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "gpu_triage_webhook" {
+  security_group_id            = aws_security_group.gpu.id
+  description                  = "Triage Service webhook (from Grafana)"
+  from_port                    = 8090
+  to_port                      = 8090
+  ip_protocol                  = "tcp"
+  referenced_security_group_id = aws_security_group.monitoring.id
+
+  tags = { Name = "${var.project_name}-gpu-triage-webhook" }
 }
 
 
@@ -362,15 +372,15 @@ resource "aws_vpc_security_group_ingress_rule" "ai_ollama" {
 # Ingress Rules — RDS SG
 # =============================================================================
 
-resource "aws_vpc_security_group_ingress_rule" "rds_mysql_from_backend" {
+resource "aws_vpc_security_group_ingress_rule" "rds_mysql_from_k3s" {
   security_group_id            = aws_security_group.rds.id
-  description                  = "MySQL from backend"
+  description                  = "MySQL from k3s"
   from_port                    = 3306
   to_port                      = 3306
   ip_protocol                  = "tcp"
-  referenced_security_group_id = aws_security_group.backend.id
+  referenced_security_group_id = aws_security_group.k3s.id
 
-  tags = { Name = "${var.project_name}-rds-mysql-from-backend" }
+  tags = { Name = "${var.project_name}-rds-mysql-from-k3s" }
 }
 
 
@@ -381,9 +391,8 @@ resource "aws_vpc_security_group_ingress_rule" "rds_mysql_from_backend" {
 resource "aws_vpc_security_group_egress_rule" "all_outbound" {
   for_each = {
     monitoring = aws_security_group.monitoring.id
-    backend    = aws_security_group.backend.id
-    network    = aws_security_group.network.id
-    ai         = aws_security_group.ai.id
+    k3s        = aws_security_group.k3s.id
+    gpu        = aws_security_group.gpu.id
     rds        = aws_security_group.rds.id
   }
 
