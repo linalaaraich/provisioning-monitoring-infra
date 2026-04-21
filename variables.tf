@@ -68,12 +68,17 @@ variable "ssh_key_name" {
 }
 
 # -----------------------------------------------------------------------------
-# AMI
+# AMI (E1-02: pinned — no silent AMI drift between applies)
+# Find current Ubuntu AMIs at https://cloud-images.ubuntu.com/locator/ec2/
 # -----------------------------------------------------------------------------
 variable "ubuntu_ami_id" {
-  description = "Pinned Ubuntu AMI ID. Leave empty to use latest."
+  description = "Pinned Ubuntu 22.04 AMI ID for the target region. Required — no default, to prevent silent AMI drift between terraform applies."
   type        = string
-  default     = ""
+
+  validation {
+    condition     = can(regex("^ami-[0-9a-f]{8,17}$", var.ubuntu_ami_id))
+    error_message = "ubuntu_ami_id must be a valid AMI ID of the form ami-xxxxxxxx. Look one up for your region at https://cloud-images.ubuntu.com/locator/ec2/"
+  }
 }
 
 # -----------------------------------------------------------------------------

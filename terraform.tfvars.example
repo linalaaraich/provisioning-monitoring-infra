@@ -4,6 +4,12 @@
 aws_region  = "us-east-1"
 environment = "demo"
 
+# Pinned Ubuntu 22.04 AMI for the chosen region. Look one up for your region at
+# https://cloud-images.ubuntu.com/locator/ec2/ — filter Zone=us-east-1, Name=jammy,
+# Arch=amd64, Instance Type=hvm:ebs-ssd. Example below is Canonical's Ubuntu 22.04 LTS
+# in us-east-1 as of 2024-09; update to a current release for your own applies.
+ubuntu_ami_id = "ami-0e86e20dae9224db8"
+
 # Restrict SSH to your IP (replace with CIRES office CIDR)
 allowed_ssh_cidrs = ["YOUR_IP/32"]
 

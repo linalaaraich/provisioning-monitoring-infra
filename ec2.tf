@@ -1,26 +1,10 @@
 # -----------------------------------------------------------------------------
-# Ubuntu 22.04 AMI
-# When ubuntu_ami_id is set, that pinned AMI is used directly (recommended for
-# production to avoid surprise AMI changes on terraform apply).
-# When left empty the data source fetches the latest Canonical AMI.
+# Ubuntu 22.04 AMI — pinned via var.ubuntu_ami_id (E1-02 rescope)
+# No data source lookup with most_recent=true: each apply uses the AMI the
+# operator explicitly chose, so re-applies don't silently upgrade the OS.
 # -----------------------------------------------------------------------------
-data "aws_ami" "ubuntu" {
-  most_recent = true
-  owners      = ["099720109477"] # Canonical
-
-  filter {
-    name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-}
-
 locals {
-  ami_id = var.ubuntu_ami_id != "" ? var.ubuntu_ami_id : data.aws_ami.ubuntu.id
+  ami_id = var.ubuntu_ami_id
 }
 
 # -----------------------------------------------------------------------------
