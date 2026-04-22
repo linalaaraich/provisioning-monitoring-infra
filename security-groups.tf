@@ -385,6 +385,45 @@ resource "aws_vpc_security_group_ingress_rule" "rds_mysql_from_k3s" {
 
 
 # =============================================================================
+# Public-browser access to dashboards + Kong NodePort.
+# Opens the UI ports to allowed_ssh_cidrs so they're reachable from the
+# operator's browser (the same CIDRs already allowed for SSH).
+# NOTE: if allowed_ssh_cidrs is 0.0.0.0/0 these UIs are world-readable.
+# Fine for a demo; tighten for production by setting a specific /32.
+# =============================================================================
+
+locals {
+  public_ui_rules = {
+    grafana   = { sg_id = aws_security_group.monitoring.id, port = 3000,  desc = "Grafana UI (operator browser)" }
+    prom_ui   = { sg_id = aws_security_group.monitoring.id, port = 9090,  desc = "Prometheus UI (operator browser)" }
+    loki_api  = { sg_id = aws_security_group.monitoring.id, port = 3100,  desc = "Loki API (operator browser / Grafana Explore)" }
+    jaeger_ui = { sg_id = aws_security_group.monitoring.id, port = 16686, desc = "Jaeger UI (operator browser)" }
+    kong_np   = { sg_id = aws_security_group.k3s.id,        port = 30080, desc = "Kong NodePort (public app entry)" }
+  }
+
+  public_ui_cidr_rules = merge([
+    for name, r in local.public_ui_rules : {
+      for cidr in var.allowed_ssh_cidrs :
+      "${name}-${cidr}" => { name = name, sg_id = r.sg_id, port = r.port, desc = r.desc, cidr = cidr }
+    }
+  ]...)
+}
+
+resource "aws_vpc_security_group_ingress_rule" "public_ui" {
+  for_each = local.public_ui_cidr_rules
+
+  security_group_id = each.value.sg_id
+  description       = each.value.desc
+  from_port         = each.value.port
+  to_port           = each.value.port
+  ip_protocol       = "tcp"
+  cidr_ipv4         = each.value.cidr
+
+  tags = { Name = "${var.project_name}-public-${each.key}" }
+}
+
+
+# =============================================================================
 # Egress Rules — All SGs allow all outbound
 # =============================================================================
 
