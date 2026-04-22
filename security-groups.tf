@@ -274,6 +274,23 @@ resource "aws_vpc_security_group_ingress_rule" "k3s_api_server" {
   tags = { Name = "${var.project_name}-k3s-api-server" }
 }
 
+# Operator access to the k3s API (so `kubectl` / `helm` work from a laptop)
+# — scoped to the same CIDRs already trusted for SSH. If allowed_ssh_cidrs
+# is 0.0.0.0/0 this is equivalently permissive; tighten both together in
+# terraform.tfvars when moving to a hardened environment.
+resource "aws_vpc_security_group_ingress_rule" "k3s_api_operator" {
+  for_each = toset(var.allowed_ssh_cidrs)
+
+  security_group_id = aws_security_group.k3s.id
+  description       = "K8s API server (operator kubectl/helm)"
+  from_port         = 6443
+  to_port           = 6443
+  ip_protocol       = "tcp"
+  cidr_ipv4         = each.value
+
+  tags = { Name = "${var.project_name}-k3s-api-operator" }
+}
+
 resource "aws_vpc_security_group_ingress_rule" "k3s_kubelet" {
   security_group_id            = aws_security_group.k3s.id
   description                  = "Kubelet metrics (Prometheus scrape)"
