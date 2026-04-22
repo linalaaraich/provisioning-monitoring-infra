@@ -42,11 +42,13 @@ resource "aws_eip" "monitoring" {
 }
 
 resource "aws_eip" "k3s" {
+  count  = var.enable_k3s ? 1 : 0
   domain = "vpc"
   tags   = { Name = "${var.project_name}-k3s-eip" }
 }
 
 resource "aws_eip" "gpu" {
+  count  = var.enable_gpu ? 1 : 0
   domain = "vpc"
   tags   = { Name = "${var.project_name}-gpu-eip" }
 }
@@ -79,6 +81,7 @@ resource "aws_eip_association" "monitoring" {
 # k3s VM — t3.xlarge, 50 GB gp3 (Spring Boot, Kong, Triage, MCP Servers)
 # -----------------------------------------------------------------------------
 resource "aws_instance" "k3s" {
+  count                  = var.enable_k3s ? 1 : 0
   ami                    = local.ami_id
   instance_type          = var.k3s_instance_type
   key_name               = aws_key_pair.ansible.key_name
@@ -95,14 +98,16 @@ resource "aws_instance" "k3s" {
 }
 
 resource "aws_eip_association" "k3s" {
-  instance_id   = aws_instance.k3s.id
-  allocation_id = aws_eip.k3s.id
+  count         = var.enable_k3s ? 1 : 0
+  instance_id   = aws_instance.k3s[0].id
+  allocation_id = aws_eip.k3s[0].id
 }
 
 # -----------------------------------------------------------------------------
 # GPU VM — g4dn.xlarge, 50 GB gp3, NVIDIA T4 GPU (Ollama)
 # -----------------------------------------------------------------------------
 resource "aws_instance" "gpu" {
+  count                  = var.enable_gpu ? 1 : 0
   ami                    = local.ami_id
   instance_type          = var.gpu_instance_type
   key_name               = aws_key_pair.ansible.key_name
@@ -119,6 +124,7 @@ resource "aws_instance" "gpu" {
 }
 
 resource "aws_eip_association" "gpu" {
-  instance_id   = aws_instance.gpu.id
-  allocation_id = aws_eip.gpu.id
+  count         = var.enable_gpu ? 1 : 0
+  instance_id   = aws_instance.gpu[0].id
+  allocation_id = aws_eip.gpu[0].id
 }

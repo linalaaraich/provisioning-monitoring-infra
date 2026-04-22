@@ -7,13 +7,13 @@ output "monitoring_private_ip" {
 }
 
 output "k3s_private_ip" {
-  description = "k3s cluster VM private IP"
-  value       = aws_instance.k3s.private_ip
+  description = "k3s cluster VM private IP (null when enable_k3s=false)"
+  value       = var.enable_k3s ? aws_instance.k3s[0].private_ip : null
 }
 
 output "gpu_private_ip" {
-  description = "GPU VM private IP"
-  value       = aws_instance.gpu.private_ip
+  description = "GPU VM private IP (null when enable_gpu=false)"
+  value       = var.enable_gpu ? aws_instance.gpu[0].private_ip : null
 }
 
 # -----------------------------------------------------------------------------
@@ -25,13 +25,13 @@ output "monitoring_public_ip" {
 }
 
 output "k3s_public_ip" {
-  description = "k3s cluster VM Elastic IP"
-  value       = aws_eip.k3s.public_ip
+  description = "k3s cluster VM Elastic IP (null when enable_k3s=false)"
+  value       = var.enable_k3s ? aws_eip.k3s[0].public_ip : null
 }
 
 output "gpu_public_ip" {
-  description = "GPU VM Elastic IP"
-  value       = aws_eip.gpu.public_ip
+  description = "GPU VM Elastic IP (null when enable_gpu=false)"
+  value       = var.enable_gpu ? aws_eip.gpu[0].public_ip : null
 }
 
 # -----------------------------------------------------------------------------

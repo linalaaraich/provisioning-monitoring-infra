@@ -164,3 +164,20 @@ variable "s3_bucket_name" {
   type        = string
   default     = "cires-observability-demo"
 }
+
+# -----------------------------------------------------------------------------
+# Staged deploy flags (quota-aware)
+# Set to false to skip the resource on this apply — lets you deploy monitoring
+# first and bring up k3s / GPU later once AWS service quotas allow it.
+# -----------------------------------------------------------------------------
+variable "enable_k3s" {
+  description = "Provision the k3s EC2 instance. Set false if your Standard on-demand vCPU quota is too low for monitoring + k3s on the same apply."
+  type        = bool
+  default     = true
+}
+
+variable "enable_gpu" {
+  description = "Provision the GPU (g4dn.xlarge) EC2 instance. Set false if your G+VT on-demand vCPU quota is 0 (common on new accounts)."
+  type        = bool
+  default     = true
+}
