@@ -61,13 +61,13 @@ output "s3_bucket_name" {
 }
 
 output "cloudfront_domain" {
-  description = "CloudFront distribution domain name"
-  value       = aws_cloudfront_distribution.frontend.domain_name
+  description = "CloudFront distribution domain name (null when enable_cloudfront=false)"
+  value       = var.enable_cloudfront ? aws_cloudfront_distribution.frontend[0].domain_name : null
 }
 
 output "cloudfront_distribution_id" {
-  description = "CloudFront distribution ID (for cache invalidation)"
-  value       = aws_cloudfront_distribution.frontend.id
+  description = "CloudFront distribution ID (null when enable_cloudfront=false)"
+  value       = var.enable_cloudfront ? aws_cloudfront_distribution.frontend[0].id : null
 }
 
 # -----------------------------------------------------------------------------

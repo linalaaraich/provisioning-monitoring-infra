@@ -20,6 +20,7 @@ resource "aws_s3_bucket_public_access_block" "frontend" {
 # CloudFront Origin Access Control (OAC)
 # -----------------------------------------------------------------------------
 resource "aws_cloudfront_origin_access_control" "frontend" {
+  count                             = var.enable_cloudfront ? 1 : 0
   name                              = "${var.project_name}-oac"
   description                       = "OAC for S3 React frontend"
   origin_access_control_origin_type = "s3"
@@ -31,10 +32,12 @@ resource "aws_cloudfront_origin_access_control" "frontend" {
 # CloudFront Distribution
 # -----------------------------------------------------------------------------
 resource "aws_cloudfront_distribution" "frontend" {
+  count = var.enable_cloudfront ? 1 : 0
+
   origin {
     domain_name              = aws_s3_bucket.frontend.bucket_regional_domain_name
     origin_id                = "s3-frontend"
-    origin_access_control_id = aws_cloudfront_origin_access_control.frontend.id
+    origin_access_control_id = aws_cloudfront_origin_access_control.frontend[0].id
   }
 
   enabled             = true
@@ -89,6 +92,7 @@ resource "aws_cloudfront_distribution" "frontend" {
 # S3 Bucket Policy — allow CloudFront OAC access
 # -----------------------------------------------------------------------------
 resource "aws_s3_bucket_policy" "frontend" {
+  count  = var.enable_cloudfront ? 1 : 0
   bucket = aws_s3_bucket.frontend.id
 
   policy = jsonencode({
@@ -102,7 +106,7 @@ resource "aws_s3_bucket_policy" "frontend" {
         Resource  = "${aws_s3_bucket.frontend.arn}/*"
         Condition = {
           StringEquals = {
-            "AWS:SourceArn" = aws_cloudfront_distribution.frontend.arn
+            "AWS:SourceArn" = aws_cloudfront_distribution.frontend[0].arn
           }
         }
       }

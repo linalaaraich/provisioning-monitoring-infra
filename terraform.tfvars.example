@@ -23,3 +23,13 @@ db_password = "CHANGE_ME_strong_password_here"
 
 # S3 bucket (must be globally unique)
 s3_bucket_name = "cires-observability-demo-UNIQUE_SUFFIX"
+
+# --- Staged deploy flags (quota-aware) -----------------------------------
+# Set false to skip a resource on this apply. Useful when AWS service quotas
+# or new-account verification restrict what you can launch.
+#   enable_k3s         — skip the t3.xlarge k3s node (4 vCPU)
+#   enable_gpu         — skip the g4dn.xlarge GPU node (requires G+VT quota > 0)
+#   enable_cloudfront  — skip CloudFront + OAC (S3 bucket always stays, used by Drain3)
+enable_k3s        = true
+enable_gpu        = false
+enable_cloudfront = false

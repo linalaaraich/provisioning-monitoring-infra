@@ -181,3 +181,9 @@ variable "enable_gpu" {
   type        = bool
   default     = true
 }
+
+variable "enable_cloudfront" {
+  description = "Provision CloudFront + OAC in front of the S3 frontend bucket. Set false if CloudFront create is verification-gated on a new account; frontend is then served from the in-cluster nginx container instead. S3 bucket is always created (used by Drain3)."
+  type        = bool
+  default     = true
+}
