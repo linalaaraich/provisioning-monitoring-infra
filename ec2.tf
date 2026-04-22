@@ -60,7 +60,7 @@ resource "aws_instance" "monitoring" {
   ami                    = local.ami_id
   instance_type          = var.monitoring_instance_type
   key_name               = aws_key_pair.ansible.key_name
-  subnet_id              = aws_subnet.private.id
+  subnet_id              = aws_subnet.public.id
   vpc_security_group_ids = [aws_security_group.monitoring.id]
   user_data              = local.user_data
 
@@ -85,7 +85,7 @@ resource "aws_instance" "k3s" {
   ami                    = local.ami_id
   instance_type          = var.k3s_instance_type
   key_name               = aws_key_pair.ansible.key_name
-  subnet_id              = aws_subnet.private.id
+  subnet_id              = aws_subnet.public.id
   vpc_security_group_ids = [aws_security_group.k3s.id]
   user_data              = local.user_data
 
@@ -111,7 +111,7 @@ resource "aws_instance" "gpu" {
   ami                    = local.ami_id
   instance_type          = var.gpu_instance_type
   key_name               = aws_key_pair.ansible.key_name
-  subnet_id              = aws_subnet.private.id
+  subnet_id              = aws_subnet.public.id
   vpc_security_group_ids = [aws_security_group.gpu.id]
   user_data              = local.user_data
 
