@@ -135,7 +135,7 @@ resource "aws_vpc_security_group_ingress_rule" "otel" {
   from_port         = each.value.port
   to_port           = each.value.port
   ip_protocol       = "tcp"
-  cidr_ipv4         = var.private_subnet_cidr
+  cidr_ipv4         = var.vpc_cidr
 
   tags = { Name = "${var.project_name}-${each.key}" }
 }
@@ -165,7 +165,7 @@ resource "aws_vpc_security_group_ingress_rule" "monitoring_prometheus" {
   from_port         = 9090
   to_port           = 9090
   ip_protocol       = "tcp"
-  cidr_ipv4         = var.private_subnet_cidr
+  cidr_ipv4         = var.vpc_cidr
 
   tags = { Name = "${var.project_name}-monitoring-prometheus" }
 }
@@ -176,7 +176,7 @@ resource "aws_vpc_security_group_ingress_rule" "monitoring_grafana" {
   from_port         = 3000
   to_port           = 3000
   ip_protocol       = "tcp"
-  cidr_ipv4         = var.private_subnet_cidr
+  cidr_ipv4         = var.vpc_cidr
 
   tags = { Name = "${var.project_name}-monitoring-grafana" }
 }
@@ -187,7 +187,7 @@ resource "aws_vpc_security_group_ingress_rule" "monitoring_loki" {
   from_port         = 3100
   to_port           = 3100
   ip_protocol       = "tcp"
-  cidr_ipv4         = var.private_subnet_cidr
+  cidr_ipv4         = var.vpc_cidr
 
   tags = { Name = "${var.project_name}-monitoring-loki" }
 }
@@ -198,7 +198,7 @@ resource "aws_vpc_security_group_ingress_rule" "monitoring_jaeger_ui" {
   from_port         = 16686
   to_port           = 16686
   ip_protocol       = "tcp"
-  cidr_ipv4         = var.private_subnet_cidr
+  cidr_ipv4         = var.vpc_cidr
 
   tags = { Name = "${var.project_name}-monitoring-jaeger-ui" }
 }
@@ -209,7 +209,7 @@ resource "aws_vpc_security_group_ingress_rule" "monitoring_jaeger_otlp_grpc" {
   from_port         = 4327
   to_port           = 4327
   ip_protocol       = "tcp"
-  cidr_ipv4         = var.private_subnet_cidr
+  cidr_ipv4         = var.vpc_cidr
 
   tags = { Name = "${var.project_name}-monitoring-jaeger-otlp-grpc" }
 }
@@ -220,7 +220,7 @@ resource "aws_vpc_security_group_ingress_rule" "monitoring_jaeger_otlp_http" {
   from_port         = 4328
   to_port           = 4328
   ip_protocol       = "tcp"
-  cidr_ipv4         = var.private_subnet_cidr
+  cidr_ipv4         = var.vpc_cidr
 
   tags = { Name = "${var.project_name}-monitoring-jaeger-otlp-http" }
 }
@@ -231,7 +231,7 @@ resource "aws_vpc_security_group_ingress_rule" "monitoring_otel_metrics" {
   from_port         = 8888
   to_port           = 8888
   ip_protocol       = "tcp"
-  cidr_ipv4         = var.private_subnet_cidr
+  cidr_ipv4         = var.vpc_cidr
 
   tags = { Name = "${var.project_name}-monitoring-otel-metrics" }
 }
@@ -242,7 +242,7 @@ resource "aws_vpc_security_group_ingress_rule" "monitoring_node_exporter" {
   from_port         = 9100
   to_port           = 9100
   ip_protocol       = "tcp"
-  cidr_ipv4         = var.private_subnet_cidr
+  cidr_ipv4         = var.vpc_cidr
 
   tags = { Name = "${var.project_name}-monitoring-node-exporter" }
 }
@@ -253,7 +253,7 @@ resource "aws_vpc_security_group_ingress_rule" "monitoring_cadvisor" {
   from_port         = 8081
   to_port           = 8081
   ip_protocol       = "tcp"
-  cidr_ipv4         = var.private_subnet_cidr
+  cidr_ipv4         = var.vpc_cidr
 
   tags = { Name = "${var.project_name}-monitoring-cadvisor" }
 }
@@ -291,7 +291,7 @@ resource "aws_vpc_security_group_ingress_rule" "k3s_nodeport" {
   from_port         = 30000
   to_port           = 32767
   ip_protocol       = "tcp"
-  cidr_ipv4         = var.private_subnet_cidr
+  cidr_ipv4         = var.vpc_cidr
 
   tags = { Name = "${var.project_name}-k3s-nodeport" }
 }
@@ -302,7 +302,7 @@ resource "aws_vpc_security_group_ingress_rule" "k3s_http" {
   from_port         = 80
   to_port           = 80
   ip_protocol       = "tcp"
-  cidr_ipv4         = var.private_subnet_cidr
+  cidr_ipv4         = var.vpc_cidr
 
   tags = { Name = "${var.project_name}-k3s-http" }
 }
@@ -313,7 +313,7 @@ resource "aws_vpc_security_group_ingress_rule" "k3s_https" {
   from_port         = 443
   to_port           = 443
   ip_protocol       = "tcp"
-  cidr_ipv4         = var.private_subnet_cidr
+  cidr_ipv4         = var.vpc_cidr
 
   tags = { Name = "${var.project_name}-k3s-https" }
 }
@@ -351,7 +351,7 @@ resource "aws_vpc_security_group_ingress_rule" "gpu_ollama" {
   from_port         = 11434
   to_port           = 11434
   ip_protocol       = "tcp"
-  cidr_ipv4         = var.private_subnet_cidr
+  cidr_ipv4         = var.vpc_cidr
 
   tags = { Name = "${var.project_name}-gpu-ollama" }
 }
