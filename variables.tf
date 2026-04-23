@@ -187,3 +187,28 @@ variable "enable_cloudfront" {
   type        = bool
   default     = true
 }
+
+# -----------------------------------------------------------------------------
+# Tailscale — zero-trust mesh for hands-off ansible over a stable hostname,
+# regardless of what public IPs AWS hands out.
+#
+# Generate an ephemeral+reusable auth key at
+# https://login.tailscale.com/admin/settings/keys and either:
+#   - export TF_VAR_tailscale_auth_key="tskey-auth-..." before `terraform apply`
+#   - or put it in terraform.tfvars (gitignored)
+#
+# Leave blank to skip Tailscale install entirely — user_data then only
+# creates the deploy user + installs python3, same as before this var existed.
+# -----------------------------------------------------------------------------
+variable "tailscale_auth_key" {
+  description = "Ephemeral + reusable Tailscale auth key. Leave empty to skip Tailscale install in user_data."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
+variable "tailscale_tailnet" {
+  description = "Tailscale tailnet name (e.g. 'tail680fd7.ts.net') — used to surface MagicDNS FQDN in the outputs. Plain hostname (no tailnet) also resolves from any tailnet peer when MagicDNS is enabled."
+  type        = string
+  default     = ""
+}
