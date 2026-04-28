@@ -78,9 +78,17 @@ locals {
     gpu        = aws_security_group.gpu.id
   }
 
-  # SSH: one rule per (SG × CIDR) combination
+  # SSH: one rule per (SG × CIDR) combination.
+  # k3s intentionally excluded as of 2026-04-28 — the node is on the Tailscale
+  # tailnet (`observability-rca-k3s`, 100.104.90.72), so operator SSH goes
+  # over WireGuard. If tailnet is degraded and you need public-IP fallback,
+  # re-add `k3s = aws_security_group.k3s.id` here and re-apply.
+  ssh_security_groups = {
+    monitoring = aws_security_group.monitoring.id
+    gpu        = aws_security_group.gpu.id
+  }
   ssh_rules = merge([
-    for sg_name, sg_id in local.vm_security_groups : {
+    for sg_name, sg_id in local.ssh_security_groups : {
       for cidr in var.allowed_ssh_cidrs :
       "${sg_name}-${cidr}" => {
         sg_id   = sg_id
@@ -274,22 +282,12 @@ resource "aws_vpc_security_group_ingress_rule" "k3s_api_server" {
   tags = { Name = "${var.project_name}-k3s-api-server" }
 }
 
-# Operator access to the k3s API (so `kubectl` / `helm` work from a laptop)
-# — scoped to the same CIDRs already trusted for SSH. If allowed_ssh_cidrs
-# is 0.0.0.0/0 this is equivalently permissive; tighten both together in
-# terraform.tfvars when moving to a hardened environment.
-resource "aws_vpc_security_group_ingress_rule" "k3s_api_operator" {
-  for_each = toset(var.allowed_ssh_cidrs)
-
-  security_group_id = aws_security_group.k3s.id
-  description       = "K8s API server (operator kubectl/helm)"
-  from_port         = 6443
-  to_port           = 6443
-  ip_protocol       = "tcp"
-  cidr_ipv4         = each.value
-
-  tags = { Name = "${var.project_name}-k3s-api-operator" }
-}
+# Operator kubectl/helm access used to be opened to allowed_ssh_cidrs here.
+# Removed 2026-04-28 — operator access now goes over Tailscale to
+# `observability-rca-k3s`. The internal `k3s_api_server` ingress (above)
+# from the monitoring SG remains so Prometheus's kubernetes_sd_configs
+# job can still scrape pod targets via the API server proxy.
+# To re-enable public-IP kubectl: restore this resource block and apply.
 
 resource "aws_vpc_security_group_ingress_rule" "k3s_kubelet" {
   security_group_id            = aws_security_group.k3s.id
@@ -403,10 +401,12 @@ resource "aws_vpc_security_group_ingress_rule" "rds_mysql_from_k3s" {
 
 # =============================================================================
 # Public-browser access to dashboards + Kong NodePort.
-# Opens the UI ports to allowed_ssh_cidrs so they're reachable from the
-# operator's browser (the same CIDRs already allowed for SSH).
-# NOTE: if allowed_ssh_cidrs is 0.0.0.0/0 these UIs are world-readable.
-# Fine for a demo; tighten for production by setting a specific /32.
+# Opens the UI ports to public_ui_cidrs (separate from allowed_ssh_cidrs as of
+# 2026-04-28 — they were entangled before, which made tightening SSH also
+# tighten UI exposure unintentionally). Default public_ui_cidrs = 0.0.0.0/0
+# for the demo. Grafana has admin/admin auth (rotate before any meaningful
+# exposure); Prometheus / Loki / Jaeger have NO auth — fine for demo, add a
+# basic-auth nginx in front for anything beyond.
 # =============================================================================
 
 locals {
@@ -420,7 +420,7 @@ locals {
 
   public_ui_cidr_rules = merge([
     for name, r in local.public_ui_rules : {
-      for cidr in var.allowed_ssh_cidrs :
+      for cidr in var.public_ui_cidrs :
       "${name}-${cidr}" => { name = name, sg_id = r.sg_id, port = r.port, desc = r.desc, cidr = cidr }
     }
   ]...)

@@ -50,7 +50,13 @@ variable "availability_zone" {
 # SSH Access
 # -----------------------------------------------------------------------------
 variable "allowed_ssh_cidrs" {
-  description = "CIDR blocks allowed SSH access (restrict to CIRES IPs)"
+  description = "CIDR blocks allowed public-internet SSH access. Tailnet traffic bypasses AWS SGs (it arrives on the tailscale0 interface inside the OS), so every node is always reachable over Tailscale regardless of what's in this list — keep it scoped tight."
+  type        = list(string)
+  default     = ["0.0.0.0/0"]
+}
+
+variable "public_ui_cidrs" {
+  description = "CIDR blocks allowed to reach the public observability UIs (Grafana :3000, Prometheus :9090, Loki :3100, Jaeger :16686) and the Kong NodePort :30080. Default is open to the internet — tighten when an auth proxy is added."
   type        = list(string)
   default     = ["0.0.0.0/0"]
 }
