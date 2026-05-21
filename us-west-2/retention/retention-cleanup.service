@@ -1,0 +1,11 @@
+[Unit]
+Description=Retention cleanup for rca_history.db (90-day window, keeps actionable forever)
+After=triage-stack.service
+Wants=triage-stack.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/triage/retention-cleanup.py
+User=root
+StandardOutput=journal
+StandardError=journal

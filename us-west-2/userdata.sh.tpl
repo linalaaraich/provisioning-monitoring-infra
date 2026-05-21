@@ -85,6 +85,16 @@ WantedBy=multi-user.target
 UNIT
 
 # -----------------------------------------------------------------------------
+# retention-cleanup.{service,timer} — daily systemd timer that prunes
+# rca_history.db rows older than 90 days (except quality='actionable',
+# which are the exemplar pool and never expire). Persistent=true so if the
+# instance was Lambda-autoshutoff during the scheduled run, it catches up
+# on next boot. The Python script + units are scp'd in by Phase 2 deploy
+# from /root/provisioning-monitoring-infra/us-west-2/retention/ — until
+# the files land, the timer just won't fire.
+# -----------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
 # drain-queue.service — picks webhooks out of SQS during cold-start recovery.
 # The actual Python (drain_queue.py) is scp'd in by Phase 2 along with the
 # compose file. Until then this unit is installed but DISABLED.

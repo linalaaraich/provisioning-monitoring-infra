@@ -1,0 +1,15 @@
+[Unit]
+Description=Daily retention cleanup of rca_history.db
+Documentation=man:systemd.timer(5)
+
+[Timer]
+# Fire daily at 04:00 UTC. Persistent=true catches up missed runs when
+# the instance was stopped by the Lambda autoshutoff at that time —
+# it runs the missed schedule as soon as the host is back up.
+OnCalendar=*-*-* 04:00:00 UTC
+Persistent=true
+RandomizedDelaySec=300
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target
