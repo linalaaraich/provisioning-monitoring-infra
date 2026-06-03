@@ -51,6 +51,40 @@ if ! command -v aws >/dev/null 2>&1; then
 fi
 
 # -----------------------------------------------------------------------------
+# Ollama — installed on the HOST (not in a container) so the systemd unit
+# can attach to the GPU directly via nvidia-container-runtime. The triage
+# compose reaches it at host.docker.internal:11434 via the docker0 gateway.
+#
+# CRITICAL drop-in: the stock ollama.service binds 127.0.0.1:11434, which
+# blocks containers (or any external caller) from reaching it. We override
+# OLLAMA_HOST to 0.0.0.0:11434 so the docker0 gateway and the VPC SG (which
+# already opens 11434) actually work. Without this drop-in, the triage
+# container hits "connection refused" on every Ollama call.
+#
+# Added to IaC 2026-06-02 after the real-induction agent had to add the
+# drop-in by hand on the live GPU host — see runbook MIGRATION_RESTORE.md.
+# -----------------------------------------------------------------------------
+if ! command -v ollama >/dev/null 2>&1; then
+  curl -fsSL https://ollama.com/install.sh | sh
+fi
+mkdir -p /etc/systemd/system/ollama.service.d
+cat >/etc/systemd/system/ollama.service.d/override.conf <<'OLLAMA_OVERRIDE'
+[Service]
+Environment="OLLAMA_HOST=0.0.0.0:11434"
+OLLAMA_OVERRIDE
+systemctl daemon-reload
+systemctl restart ollama || true
+systemctl enable ollama || true
+
+# Pre-pull the production models so Phase 2 doesn't pay the ~10 GB download
+# on first request. `:14b` is the primary; `:7b` is the fallback used when
+# the circuit breaker trips on the 14b. Ollama's canonical tags are bare
+# `:14b` + `:7b` — the `-instruct` suffix is NOT a valid tag for qwen2.5
+# (caught by the real-induction agent 2026-06-02 with a 404 on /api/generate).
+sudo -u ubuntu ollama pull qwen2.5:14b || echo "WARN: qwen2.5:14b pre-pull failed."
+sudo -u ubuntu ollama pull qwen2.5:7b  || echo "WARN: qwen2.5:7b pre-pull failed."
+
+# -----------------------------------------------------------------------------
 # Triage stack scaffolding — directories + image pre-pull.
 # The actual docker-compose.gpu.yml file is scp'd in during Phase 2;
 # user-data only primes the host so Phase 2 is fast.
