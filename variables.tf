@@ -56,9 +56,9 @@ variable "allowed_ssh_cidrs" {
 }
 
 variable "public_ui_cidrs" {
-  description = "CIDR blocks allowed to reach the public observability UIs (Grafana :3000, Prometheus :9090, Loki :3100, Jaeger :16686) and the Kong NodePort :30080. Default is open to the internet — tighten when an auth proxy is added."
+  description = "CIDR blocks allowed PUBLIC-INTERNET access to the observability UIs (Grafana :3000, Prometheus :9090, Loki :3100, Jaeger :16686) and the Kong NodePort :30080. 2026-06-04 (audit I-4): tightened to [] — these UIs are unauthenticated (Grafana ships admin/admin, Prom/Loki/Jaeger have no auth) and were exposed to 0.0.0.0/0. Operator access is via Tailscale, which bypasses AWS SGs (arrives on tailscale0), so [] does NOT affect tailnet reachability. Add a specific /32 here only if a public auth proxy is ever fronted."
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+  default     = []
 }
 
 variable "ssh_public_key_path" {
