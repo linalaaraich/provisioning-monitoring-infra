@@ -107,9 +107,15 @@ locals {
   ]...)
 
   # Node Exporter (:9100) and cAdvisor (:8081) — scraped by Prometheus (sg-monitoring)
-  # gpu only (k3s pods are scraped via kubernetes_sd_configs, monitoring scrapes itself)
+  # 2026-06-02 update: k3s added. The k3s VM now runs a native host-level
+  # node_exporter (apt prometheus-node-exporter) so Prom can see the k3s
+  # node's CPU/memory/disk — k3s pods are still discovered via
+  # kubernetes_sd_configs, but those are pod-cgroup metrics, not host-level.
+  # Without this rule, MediumCpuUsage / HighCpuUsage on service=k3s-node
+  # can never fire.
   infra_scrape_sgs = {
     gpu = aws_security_group.gpu.id
+    k3s = aws_security_group.k3s.id
   }
 
   infra_scrape_rules = merge([

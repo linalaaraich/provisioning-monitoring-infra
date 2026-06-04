@@ -26,10 +26,12 @@ locals {
     Name = local.instance_name
   }
 
-  # Placeholder SQS queue ARN — the real queue is created by the Phase 3
-  # Lambda Terraform. We grant the instance role read+delete on this exact
-  # ARN now so Phase 3 can just match the name when it creates the queue.
-  cold_start_queue_arn = "arn:aws:sqs:us-west-2:735115318342:triage-cold-start-queue"
+  # Placeholder SQS queue ARN - the real queue is created by gateway.tf in
+  # the same apply. We grant the instance role read+delete on this exact ARN
+  # now so the queue resource just matches the name when it lands.
+  # Account ID is resolved at apply time from data.aws_caller_identity (already
+  # declared in gateway.tf:37) so this string self-heals across accounts.
+  cold_start_queue_arn = "arn:aws:sqs:us-west-2:${data.aws_caller_identity.current.account_id}:triage-cold-start-queue"
 }
 
 # -----------------------------------------------------------------------------
@@ -250,7 +252,7 @@ resource "aws_instance" "gpu" {
 
   user_data = templatefile("${path.module}/userdata.sh.tpl", {
     tailscale_auth_key = var.tailscale_auth_key
-    tailscale_hostname = "observability-gpu-uswest2"
+    tailscale_hostname = "observability-gpu-uswest2-newacct"
   })
 
   root_block_device {
