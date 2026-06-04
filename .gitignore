@@ -19,3 +19,8 @@ id_*
 # IDE
 .idea/
 .vscode/
+plan.out
+*/plan.out
+handler.zip
+*/handler.zip
+outputs-*.json
