@@ -29,7 +29,13 @@ resource "aws_db_instance" "mysql" {
 
   multi_az            = false
   publicly_accessible = false
-  skip_final_snapshot = true
+  # 2026-06-04 (audit terraform I-10): protect the restored 116k-row app_db.
+  # deletion_protection blocks an accidental destroy/replace; flipping
+  # skip_final_snapshot to false means even a deliberate destroy leaves a
+  # final snapshot (terraform auto-names it) instead of silent data loss.
+  skip_final_snapshot       = false
+  deletion_protection       = true
+  final_snapshot_identifier = "${var.project_name}-mysql-final"
 
   tags = { Name = "${var.project_name}-mysql" }
 }

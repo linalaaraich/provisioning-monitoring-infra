@@ -186,9 +186,14 @@ resource "aws_iam_role" "router" {
 
 data "aws_iam_policy_document" "router_inline" {
   statement {
-    sid       = "EC2DescribeAndStart"
-    actions   = ["ec2:DescribeInstances", "ec2:StartInstances"]
-    resources = ["*"] # DescribeInstances is wildcard-only; StartInstances we tighten in a Condition
+    sid       = "EC2Describe"
+    actions   = ["ec2:DescribeInstances"]
+    resources = ["*"] # DescribeInstances is wildcard-only by AWS
+  }
+  statement {
+    sid       = "EC2StartGpuOnly"
+    actions   = ["ec2:StartInstances"]
+    resources = [aws_instance.gpu.arn] # audit I-3: scoped to the GPU host, not *
   }
   statement {
     sid       = "SQSWrite"
@@ -229,9 +234,14 @@ resource "aws_iam_role" "idle_checker" {
 
 data "aws_iam_policy_document" "idle_checker_inline" {
   statement {
-    sid       = "EC2DescribeAndStop"
-    actions   = ["ec2:DescribeInstances", "ec2:StopInstances"]
-    resources = ["*"]
+    sid       = "EC2Describe"
+    actions   = ["ec2:DescribeInstances"]
+    resources = ["*"] # DescribeInstances is wildcard-only by AWS
+  }
+  statement {
+    sid       = "EC2StopGpuOnly"
+    actions   = ["ec2:StopInstances"]
+    resources = [aws_instance.gpu.arn] # audit I-3: scoped to the GPU host, not *
   }
   statement {
     sid       = "DDBStateRead"
@@ -347,8 +357,13 @@ resource "aws_lambda_function" "idle_checker" {
 # EventBridge — rate(5 minutes) -> idle checker
 # -----------------------------------------------------------------------------
 resource "aws_cloudwatch_event_rule" "idle_check" {
-  name                = "triage-idle-check"
-  description         = "Fires the triage-idle-checker every 5 min"
+  name        = "triage-idle-check"
+  description = "Fires the triage-idle-checker every 5 min"
+  # 2026-06-04: DISABLED on purpose — Lina wants the GPU to run 24/7 for now
+  # (autoshutoff wake path is verified sound, but enabling needs a monitored
+  # wake test). Pinning state here makes code match live (was a silent drift:
+  # ENABLED in code / DISABLED in AWS). Flip to "ENABLED" to re-enable idle stop.
+  state               = "DISABLED"
   schedule_expression = "rate(5 minutes)"
 }
 
