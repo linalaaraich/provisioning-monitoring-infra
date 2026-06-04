@@ -47,6 +47,19 @@ variable "billing_alert_threshold_usd" {
 }
 
 # -----------------------------------------------------------------------------
+# Cost protection — AWS Budgets monthly limit (the PRIMARY guardrail).
+# Unlike the CloudWatch EstimatedCharges alarm, AWS Budgets does NOT depend on
+# the "Receive Billing Alerts" console preference, so this fires from day one.
+# Default 800 USD covers the known ~724 USD/mo g5.xlarge GPU 24/7 run-rate with
+# headroom. Override via terraform.tfvars if the run-rate changes. (audit TF-N1)
+# -----------------------------------------------------------------------------
+variable "monthly_budget_limit_usd" {
+  description = "USD monthly cost-budget limit for AWS Budgets. Default 800 covers the ~724 USD/mo GPU run-rate with headroom. Budgets works without the 'Receive Billing Alerts' preference, so this is the primary spend guardrail."
+  type        = number
+  default     = 800
+}
+
+# -----------------------------------------------------------------------------
 # Phase 3 gateway — added by gateway.tf
 # -----------------------------------------------------------------------------
 variable "alarm_email_to" {
