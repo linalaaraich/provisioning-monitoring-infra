@@ -78,3 +78,21 @@ variable "allowed_webhook_source_ips" {
   type        = list(string)
   default     = []
 }
+
+variable "gpu_ami_id" {
+  # T-1 (2026-06-10 audit): replaces the most_recent=true data source — see
+  # the AMI comment block in main.tf. Default = the AMI the live instance
+  # (i-0f15de2cbb34c2657, observability-rca-gpu) actually runs:
+  #   "Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04) 20260529"
+  #   created 2026-05-29, owner 898082745236 (Amazon's DL AMI publisher).
+  # To roll the AMI deliberately, set a new id here/tfvars and plan for the
+  # instance replacement on purpose (drain Ollama models / triage first).
+  description = "Pinned AMI id for the GPU host (DL Base OSS Nvidia Driver GPU AMI, Ubuntu 22.04). Changing it replaces the instance."
+  type        = string
+  default     = "ami-04f5eedff2f0772a5"
+
+  validation {
+    condition     = can(regex("^ami-[0-9a-f]{8,17}$", var.gpu_ami_id))
+    error_message = "gpu_ami_id must be a valid AMI id (ami-xxxxxxxx)."
+  }
+}

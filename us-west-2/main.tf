@@ -204,31 +204,15 @@ resource "aws_iam_instance_profile" "gpu" {
 }
 
 # -----------------------------------------------------------------------------
-# AMI — AWS Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04)
-# Owner 898082745236 is Amazon's official DL AMI publisher in us-west-2.
-# most_recent=true so re-applies pick up the latest patched build; the
-# instance has ignore_changes=[ami] below so existing hosts aren't replaced.
-# -----------------------------------------------------------------------------
-data "aws_ami" "dl_base" {
-  most_recent = true
-  owners      = ["amazon"]
-
-  filter {
-    name   = "name"
-    values = ["Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04) ????????"]
-  }
-
-  filter {
-    name   = "architecture"
-    values = ["x86_64"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-}
-
+# AMI — pinned (T-1, 2026-06-10 audit).
+# Was a `data "aws_ami" "dl_base" { most_recent = true ... }` lookup over
+# Amazon's DL Base AMI line (owner 898082745236) — non-deterministic: AWS
+# publishes new builds frequently, so the data source drifted ahead of the
+# live host and only `ignore_changes=[ami]` stood between a future apply and
+# a silent destroy/replace of the 24/7 GPU instance (wiping local model
+# state). Now pinned via `var.gpu_ami_id` (mirrors the us-east-1
+# `ubuntu_ami_id` pattern); AMI rolls become an explicit, reviewed variable
+# change. `ignore_changes=[ami]` is kept as belt-and-suspenders.
 # -----------------------------------------------------------------------------
 # Elastic IP
 # -----------------------------------------------------------------------------
@@ -242,7 +226,7 @@ resource "aws_eip" "gpu" {
 # GPU instance — g5.xlarge, 200 GB gp3 root
 # -----------------------------------------------------------------------------
 resource "aws_instance" "gpu" {
-  ami                  = data.aws_ami.dl_base.id
+  ami                  = var.gpu_ami_id
   instance_type        = var.instance_type
   key_name             = var.key_pair_name
   subnet_id            = aws_subnet.public.id
